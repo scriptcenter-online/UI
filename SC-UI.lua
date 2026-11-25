@@ -1,12 +1,11 @@
 local SC = {}
-SC.Version = "1.0.0-rc.9"
+SC.Version = "1.1.0"
 local BRAND = "ScriptCenter"
 local LOGO = "rbxassetid://97517292167647"
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
--- 01 | Validation ----------------------------------------------------------
 local function finite(value)
     return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
@@ -50,7 +49,6 @@ local function trace(err)
     return debug.traceback(tostring(err), 2)
 end
 
--- 02 | Bounded diagnostic buffer -------------------------------------------
 local Logger = {}
 Logger.__index = Logger
 
@@ -101,7 +99,6 @@ local function protected(context, callback, ...)
     return table.unpack(result, 1, result.n)
 end
 
--- 03 | Resource ownership --------------------------------------------------
 local Scope = {}
 Scope.__index = Scope
 
@@ -228,7 +225,6 @@ function Scope:Size()
     return count
 end
 
--- 04 | Instance factory ----------------------------------------------------
 local function create(scope, class, properties, parent)
     assert(scope.Alive, "Scope is closed")
     local instance = Instance.new(class)
@@ -247,7 +243,6 @@ local function create(scope, class, properties, parent)
     return instance
 end
 
--- 05 | Tween ownership (one channel per target/property set) ---------------
 local Animator = {}
 Animator.__index = Animator
 
@@ -316,7 +311,6 @@ function Animator:Play(target, goals, duration)
     return played
 end
 
--- 06 | Validated state -----------------------------------------------------
 local State = {}
 State.__index = State
 
@@ -400,7 +394,6 @@ function State:Destroy()
     table.clear(self.Entries)
 end
 
--- 07 | Core lifecycle and minimal smoke-test shell -------------------------
 local active
 local Tab = {}
 Tab.__index = Tab
@@ -424,8 +417,6 @@ function Window:Destroy()
     self._popupOwner=nil
     self._dialog=nil
     self._loadingScope=nil
-    self._lastAutoExport=nil
-    self._storage=nil
     self._state:Destroy()
     for _,key in ipairs({"_elements","_tabs","_colors","_translations","_keyElements","_preferenceControls","_metricCaptions"}) do
         if self[key] then table.clear(self[key]) end
@@ -471,7 +462,6 @@ function SC:CreateWindow(options)
         _animator = Animator.new(scope),
     }, Window)
     local ok, err = protected("Window.initialize", function()
-        -- Separate copies of the module use a synchronous BindableFunction handoff.
         local old = parent:FindFirstChild("SCUI_Signature")
         if old then
             local shutdown = old:FindFirstChild("SCUI_Shutdown")
@@ -504,17 +494,52 @@ function SC:CreateWindow(options)
     return window
 end
 
--- 07A | Signature theme and layout -----------------------------------------
 local UIS = game:GetService("UserInputService")
 local Themes = {
-    BlackGold = {20,20,23, 31,31,36, 217,188,124},
-    Midnight = {16,22,35, 27,36,52, 139,169,244},
-    Emerald = {16,24,23, 28,39,37, 105,198,162},
-    Classic = {23,23,25, 36,36,40, 190,190,200},
+    BlackGold = {19,19,22, 27,27,31, 218,189,126},
 }
 local Sizes = {Compact = Vector2.new(420,300), Small = Vector2.new(480,340), Medium = Vector2.new(600,400), Large = Vector2.new(720,480)}
 local function corner(scope, object, radius)
     return create(scope, "UICorner", {CornerRadius = UDim.new(0,radius)}, object)
+end
+local IconPaths = {
+    ["home"] = {{3,10,12,3},{12,3,21,10},{6,9,6,21},{18,9,18,21},{6,21,18,21},{10,21,10,15},{10,15,14,15},{14,15,14,21}},
+    ["settings"] = {{12,2,12,6},{12,18,12,22},{2,12,6,12},{18,12,22,12},{5,5,8,8},{16,16,19,19},{5,19,8,16},{16,8,19,5},{8,8,16,8},{16,8,16,16},{16,16,8,16},{8,16,8,8}},
+    ["user"] = {{8,4,16,4},{16,4,18,9},{18,9,12,13},{12,13,6,9},{6,9,8,4},{4,21,4,18},{4,18,8,15},{8,15,16,15},{16,15,20,18},{20,18,20,21}},
+    ["list"] = {{5,6,21,6},{5,12,21,12},{5,18,21,18},{2,6,3,6},{2,12,3,12},{2,18,3,18}},
+    ["box"] = {{4,4,20,4},{20,4,20,20},{20,20,4,20},{4,20,4,4},{4,8,20,8}},
+    ["activity"] = {{2,12,7,12},{7,12,10,5},{10,5,14,19},{14,19,17,12},{17,12,22,12}},
+    ["search"] = {{5,4,14,4},{14,4,18,8},{18,8,18,13},{18,13,14,17},{14,17,5,17},{5,17,2,13},{2,13,2,8},{2,8,5,4},{16,15,22,21}},
+    ["gamepad"] = {{5,7,19,7},{19,7,22,17},{22,17,19,20},{19,20,15,16},{15,16,9,16},{9,16,5,20},{5,20,2,17},{2,17,5,7},{5,11,11,11},{8,8,8,14},{16,11,18,11}},
+    ["folder"] = {{3,6,10,6},{10,6,12,9},{12,9,21,9},{21,9,21,20},{21,20,3,20},{3,20,3,6}},
+    ["shield"] = {{12,3,21,7},{21,7,19,16},{19,16,12,21},{12,21,5,16},{5,16,3,7},{3,7,12,3}},
+    ["zap"] = {{13,2,4,13},{4,13,11,13},{11,13,10,22},{10,22,20,10},{20,10,13,10},{13,10,13,2}},
+    ["code"] = {{8,5,2,12},{2,12,8,19},{16,5,22,12},{22,12,16,19},{14,4,10,20}},
+    ["menu"] = {{4,6,20,6},{4,12,20,12},{4,18,20,18}},
+    ["minus"] = {{5,12,19,12}},
+    ["maximize"] = {{5,5,19,5},{19,5,19,19},{19,19,5,19},{5,19,5,5}},
+    ["close"] = {{5,5,19,19},{19,5,5,19}},
+    ["resize"] = {{9,20,20,9},{15,20,20,15}},
+    ["chevron"] = {{6,9,12,15},{12,15,18,9}},
+    ["heart"] = {{12,21,3,12},{3,12,3,7},{3,7,7,4},{7,4,12,8},{12,8,17,4},{17,4,21,7},{21,7,21,12},{21,12,12,21}},
+    ["star"] = {{12,2,15,9},{15,9,22,9},{22,9,17,14},{17,14,19,22},{19,22,12,17},{12,17,5,22},{5,22,7,14},{7,14,2,9},{2,9,9,9},{9,9,12,2}},
+}
+local IconAliases = { ["list-checks"]="list", gift="box", egg="box", dna="activity", bug="activity", clock="activity", globe="search" }
+local function drawIcon(scope,parent,name,position,size,color)
+    local holder=create(scope,"Frame",{BackgroundTransparency=1,Position=position,Size=UDim2.fromOffset(size,size)},parent)
+    local path=IconPaths[IconAliases[name] or name] or IconPaths.folder
+    for _,seg in ipairs(path) do
+        local x,y,u,v=table.unpack(seg)
+        local dx,dy=u-x,v-y
+        local line=create(scope,"Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale((x+u)/48,(y+v)/48),Size=UDim2.fromOffset(math.sqrt(dx*dx+dy*dy)*size/24+0.7,1.6),Rotation=math.deg(math.atan2(dy,dx)),BackgroundColor3=color,BorderSizePixel=0},holder)
+        corner(scope,line,2)
+    end
+    return holder
+end
+local function tintIcon(holder,color)
+    for _,line in ipairs(holder:GetChildren()) do
+        if line:IsA("Frame") then line.BackgroundColor3=color end
+    end
 end
 local function label(scope, parent, value, size, position, dimensions)
     return create(scope, "TextLabel", {
@@ -530,10 +555,17 @@ local function button(scope, parent, value, position, dimensions)
         TextColor3 = Color3.fromRGB(235,235,239), BackgroundColor3 = Color3.fromRGB(43,43,49),
         BorderSizePixel = 0, AutoButtonColor = true, Position = position, Size = dimensions,
     }, parent)
-    corner(scope, object, 8)
+    corner(scope, object, 10)
     return object
 end
 function Window:_bindColor(object, property, role)
+    for _, binding in ipairs(self._colors) do
+        if binding.Object==object and binding.Property==property then
+            binding.Role=role
+            object[property]=self._palette[role]
+            return
+        end
+    end
     table.insert(self._colors, {Object = object, Property = property, Role = role})
     object[property] = self._palette[role]
     object.Destroying:Once(function()
@@ -544,6 +576,7 @@ function Window:_bindColor(object, property, role)
 end
 function Window:SetTheme(name)
     if not self:IsAlive() or type(name) ~= "string" or not Themes[name] then return false end
+    if self._theme == name then return true end
     local t = Themes[name]
     self._theme = name
     self._palette = {
@@ -551,7 +584,7 @@ function Window:SetTheme(name)
         Surface = Color3.fromRGB(t[4],t[5],t[6]),
         Accent = Color3.fromRGB(t[7],t[8],t[9]),
         Text = Color3.fromRGB(235,235,239),
-        Muted = Color3.fromRGB(159,159,170),
+        Muted = Color3.fromRGB(174,174,184),
         Control = Color3.fromRGB(math.min(t[4]+14,255),math.min(t[5]+14,255),math.min(t[6]+14,255)),
     }
     for i = #self._colors, 1, -1 do
@@ -577,7 +610,7 @@ end
 function Window:_clamp(object, position)
     local bounds = self:_bounds()
     local size = Vector2.new(object.Size.X.Offset, object.Size.Y.Offset)
-    local margin = 6
+    local margin = math.min(6, math.max(0, (math.min(bounds.X,bounds.Y)-1)/2))
     return Vector2.new(
         math.clamp(position.X, margin, math.max(margin,bounds.X-size.X-margin)),
         math.clamp(position.Y, margin, math.max(margin,bounds.Y-size.Y-margin))
@@ -597,20 +630,27 @@ function Window:_layout(center)
     local width = math.min(target.X,math.max(1,bounds.X-16))
     local height = math.min(target.Y,math.max(1,bounds.Y-16))
     self._panel.Size = UDim2.fromOffset(width,height)
-    self._capsule.Size = UDim2.fromOffset(math.min(self._capsuleMode=="Logo only" and 36 or 148,math.max(1,bounds.X-12)),math.min(36,math.max(1,bounds.Y-12)))
-    local compact = width < 500 or self._sidebarCollapsed
-    local sidebarWidth = compact and 56 or 145
-    self._sidebar.Size = UDim2.new(0,sidebarWidth,1,-58)
-    self._content.Position = UDim2.fromOffset(sidebarWidth+12,66)
-    self._content.Size = UDim2.new(1,-sidebarWidth-24,1,-78)
+    self._capsule.Size = UDim2.fromOffset(math.min(self._capsuleMode=="Logo only" and 44 or 166,math.max(1,bounds.X-12)),math.min(44,math.max(1,bounds.Y-12)))
+    local compact = width < 360 or self._sidebarCollapsed
+    if self._notificationHost then
+        self._notificationHost.Size = UDim2.fromOffset(math.min(245,math.max(1,bounds.X-20)),214)
+    end
+    local fullCapsule = self._capsuleMode ~= "Logo only" and self._capsule.Size.X.Offset >= 130
+    if self._capsuleText then self._capsuleText.Visible = fullCapsule end
+    if self._capsuleArrow then self._capsuleArrow.Visible = fullCapsule end
+    local sidebarWidth = compact and 52 or (width < 500 and 110 or 144)
+    self._sidebar.Size = UDim2.new(0,sidebarWidth,1,-76)
+    self._content.Position = UDim2.fromOffset(sidebarWidth+24,66)
+    self._content.Size = UDim2.new(1,-sidebarWidth-36,1,-78)
     for _, entry in pairs(self._tabs) do
-        entry.Button.Text = compact and entry.Short or (entry.Short .. "   " .. (entry.DisplayName or entry.Name))
+        entry.Button.Text = ""
+        entry.IconLabel.Position = compact and UDim2.new(0.5,-10,0.5,-10) or UDim2.new(0,9,0.5,-10)
+        entry.NameLabel.Visible = not compact
     end
     local current = self._panel.Position
-    self:_place(self._panel,center and Vector2.new((bounds.X-width)/2,(bounds.Y-height)/2) or Vector2.new(current.X.Offset,current.Y.Offset))
+    self:_place(self._panel,(center or self._maximized) and Vector2.new((bounds.X-width)/2,(bounds.Y-height)/2) or Vector2.new(current.X.Offset,current.Y.Offset))
     local cp = self._capsule.Position
     self:_place(self._capsule,Vector2.new(cp.X.Offset,cp.Y.Offset))
-    -- AbsoluteSize can update on the following frame; clamp again once.
     if not self._layoutPending then
         self._layoutPending = true
         self._scope:Delay(0,function()
@@ -633,11 +673,17 @@ function Window:SetSize(mode)
         self._sizeMode = mode
     else return false end
     self._maximized = false
-    self:_layout(false)
+    self:_layout(type(mode)=="string")
     return true
 end
 function Window:Center()
+    if not self:IsAlive() then return false end
     self:_layout(true)
+    return true
+end
+function Window:GetSize()
+    if not self:IsAlive() then return nil end
+    return self._sizeMode, Vector2.new(self._panel.Size.X.Offset,self._panel.Size.Y.Offset)
 end
 function Window:SetVisible(value)
     if not self:IsAlive() or type(value) ~= "boolean" then return false end
@@ -662,6 +708,7 @@ function Window:SetVisible(value)
     return true
 end
 function Window:Toggle()
+    if not self:IsAlive() then return false end
     return self:SetVisible(not self._panel.Visible)
 end
 function Window:SetAnimation(enabled)
@@ -673,11 +720,12 @@ function Window:SetAnimation(enabled)
     end
     return true
 end
--- Single pointer router: no independent global input listeners per widget.
 function Window:_attachDrag(handle, object, mode, tap)
     self._scope:Connect(handle.InputBegan,function(input)
         local kind = input.UserInputType
-        if object==self._panel and mode=="Move" and self._draggable==false then return end
+        if self._dialog or self._loadingScope then return end
+        if object==self._panel and mode=="Resize" and self._maximized then return end
+        if object==self._panel and mode=="Move" and (self._draggable==false or self._maximized) then return end
         if self._pointer or (kind ~= Enum.UserInputType.MouseButton1 and kind ~= Enum.UserInputType.Touch) then return end
         self._pointer = {Input=input, Touch=kind==Enum.UserInputType.Touch, Start=Vector2.new(input.Position.X,input.Position.Y), Position=Vector2.new(object.Position.X.Offset,object.Position.Y.Offset), Size=object.AbsoluteSize, Object=object, Mode=mode, Tap=tap, Moved=false}
     end)
@@ -729,7 +777,6 @@ function Window:_initInput()
         end
     end)
 end
--- 07B | Navigation foundation (components follow in round 3) ---------------
 function Window:SelectTab(name)
     if not self:IsAlive() or not self._tabs[name] then return false end
     if self._selected~=name then
@@ -744,7 +791,8 @@ function Window:SelectTab(name)
     self._selected = name
     for key, entry in pairs(self._tabs) do
         entry.Page.Visible = key == name
-        entry.Button.TextColor3 = key == name and self._palette.Accent or self._palette.Text
+        tintIcon(entry.IconLabel,key == name and self._palette.Accent or self._palette.Muted)
+        entry.NameLabel.TextColor3 = key == name and self._palette.Accent or self._palette.Text
         entry.Button.BackgroundColor3 = key == name and self._palette.Control or self._palette.Surface
         if entry.Indicator then entry.Indicator.Visible = key == name end
     end
@@ -758,7 +806,7 @@ function Window:CreateTab(options)
     assert(name~="" and not self._tabs[name],"Invalid or duplicate tab")
     local scope = self._scope:Child("Tab/"..name)
     local tabButton = button(scope,self._nav,name,UDim2.new(),UDim2.new(1,0,0,36))
-    tabButton.LayoutOrder = name == "Settings" and 100000 or self._tabCount
+    tabButton.LayoutOrder = self._tabCount
     self._tabCount += 1
     self:_bindColor(tabButton,"BackgroundColor3","Surface")
     local page = create(scope,"ScrollingFrame",{
@@ -776,10 +824,13 @@ function Window:CreateTab(options)
         subtitle.LayoutOrder=1
         self:_bindColor(subtitle,"TextColor3","Muted")
     end
-    local symbols = {home="⌂", settings="⚙", user="◎", list="≡", star="★", box="□", activity="∿", search="⌕", gamepad="◇", heart="♡", gift="◆", egg="◉", dna="∿", bug="✳", ["list-checks"]="☑", shield="◇", zap="ϟ", clock="◷", code="‹›", globe="◎", folder="▣"}
-    local icon = type(options.Icon)=="string" and symbols[string.lower(options.Icon)] or nil
-    local entry={Name=name,Short=icon or (name=="Home" and "⌂") or (name=="Settings" and "⚙") or string.sub(name,1,(utf8.offset(name,2) or (#name+1))-1),Page=page,Button=tabButton,_scope=scope,_window=self}
+    local icon = type(options.Icon)=="string" and string.lower(options.Icon) or string.lower(name)
+    local entry={Name=name,Page=page,Button=tabButton,_scope=scope,_window=self}
     entry.Title=title
+    tabButton.Text=""
+    entry.IconLabel=drawIcon(scope,tabButton,icon,UDim2.new(0,9,0.5,-10),20,self._palette.Muted)
+    entry.NameLabel=label(scope,tabButton,name,13,UDim2.fromOffset(38,0),UDim2.new(1,-44,1,0))
+    entry.NameLabel.Font=Enum.Font.GothamMedium
     entry.Indicator=create(scope,"Frame",{Size=UDim2.fromOffset(3,22),Position=UDim2.fromOffset(0,7),BorderSizePixel=0,Visible=false},tabButton)
     corner(scope,entry.Indicator,2)
     self:_bindColor(entry.Indicator,"BackgroundColor3","Accent")
@@ -789,10 +840,8 @@ function Window:CreateTab(options)
     self:_layout(false)
     return setmetatable(entry,Tab)
 end
--- 07C | Signature shell ---------------------------------------------------
 
 
--- 08 | Core self-test (no UI creation) -------------------------------------
 function SC:RunCoreTests()
     local results = {}
     local function test(name, callback)
@@ -863,8 +912,6 @@ function SC:RunCoreTests()
     return results
 end
 
--- 09 | Public component engine --------------------------------------------
--- All controls share state validation, ownership and a consistent API.
 local Element = {}
 Element.__index = Element
 
@@ -915,6 +962,15 @@ end
 
 function Element:SetDescription(value)
     if not self:IsAlive() or type(value)~="string" then return false end
+    if self._compactToggle and value~="" then
+        self._compactToggle=false
+        self._row.AutomaticSize=Enum.AutomaticSize.Y
+        self._row.Size=UDim2.new(1,self._row.Size.X.Offset,0,0)
+        self._title.Size=UDim2.new(1,0,0,20)
+        self._content.Position=UDim2.new()
+        self._content.Size=UDim2.new(1,0,0,30)
+        create(self._scope,"UIListLayout",{Padding=UDim.new(0,5),SortOrder=Enum.SortOrder.LayoutOrder},self._row)
+    end
     self._description.Text=value
     self._description.Visible=value~=""
     return true
@@ -962,7 +1018,6 @@ function Element:SetValue(value,silent)
     local current=self:GetValue()
     if self._render then protected("Component.render",self._render,current) end
     if not silent and not equal(old,current) and self._callback then
-        -- Serialize callbacks per control; retain the latest value during rapid drag.
         self._pendingCallback={Value=clone(current)}
         if not self._callbackRunning then
             self._callbackRunning=true
@@ -1020,18 +1075,20 @@ function Tab:_element(options,height)
     end
     local scope=self._scope:Child("Element")
     local row=create(scope,"Frame",{
-        Size=UDim2.new(1,-8,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+        Size=UDim2.new(1,self._container and 0 or -8,0,0),AutomaticSize=Enum.AutomaticSize.Y,
         BorderSizePixel=0,
     },self.Page)
     w:_bindColor(row,"BackgroundColor3","Surface")
-    corner(scope,row,9)
-    create(scope,"UIPadding",{PaddingTop=UDim.new(0,9),PaddingBottom=UDim.new(0,9),PaddingLeft=UDim.new(0,10),PaddingRight=UDim.new(0,10)},row)
+    corner(scope,row,12)
+    if self._container then row.BackgroundTransparency=1 end
+    create(scope,"UIStroke",{Color=Color3.fromRGB(63,58,49),Transparency=self._container and 1 or 0.78,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},row)
+    create(scope,"UIPadding",{PaddingTop=UDim.new(0,8),PaddingBottom=UDim.new(0,8),PaddingLeft=UDim.new(0,12),PaddingRight=UDim.new(0,12)},row)
     create(scope,"UIListLayout",{Padding=UDim.new(0,5),SortOrder=Enum.SortOrder.LayoutOrder},row)
     local title=label(scope,row,text(options.Name or options.Title,"Feature",200),13,UDim2.new(),UDim2.new(1,0,0,20))
     title.Font=Enum.Font.GothamMedium
     title.LayoutOrder=1
     w:_bindColor(title,"TextColor3","Text")
-    local desc=label(scope,row,text(options.Desc or options.Description,"",1000),11,UDim2.new(),UDim2.new(1,0,0,0))
+    local desc=label(scope,row,text(options.Desc or options.Description,"",1000),12,UDim2.new(),UDim2.new(1,0,0,0))
     desc.LayoutOrder=2
     desc.TextWrapped=true
     desc.TextTruncate=Enum.TextTruncate.None
@@ -1058,8 +1115,8 @@ function Tab:_element(options,height)
             if not w._colors[i].Object.Parent or w._colors[i].Object:IsDescendantOf(e._row) or w._colors[i].Object==e._row then table.remove(w._colors,i) end
         end
     end)
-    e._tabName=self.Name
-    e._systemControl=self.Name=="Home" or self.Name=="Settings" or self.Name=="Search"
+    e._tabName=self._tabName or self.Name
+    e._systemControl=false
     return e
 end
 
@@ -1077,7 +1134,9 @@ function Element:_textbox(value,placeholder,parent,position,size)
         TextSize=13,Font=Enum.Font.Gotham,BorderSizePixel=0,
         Position=position or UDim2.new(),Size=size or UDim2.fromScale(1,1),
     },parent or self._content)
-    corner(self._scope,box,7)
+    corner(self._scope,box,9)
+    create(self._scope,"UIStroke",{Color=Color3.fromRGB(100,89,66),Transparency=0.65,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},box)
+    create(self._scope,"UIPadding",{PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8)},box)
     self._window:_bindColor(box,"BackgroundColor3","Control")
     self._window:_bindColor(box,"TextColor3","Text")
     self._window:_bindColor(box,"PlaceholderColor3","Muted")
@@ -1092,7 +1151,10 @@ function Tab:CreateSection(options)
 end
 
 function Tab:CreateLabel(options)
-    return self:_element(options,0)
+    options=optionsOf(options)
+    local e=self:_element(options,0)
+    if options.Text~=nil then e:SetDescription(tostring(options.Text)) end
+    return e
 end
 
 function Tab:CreateParagraph(options)
@@ -1115,21 +1177,41 @@ function Tab:CreateButton(options)
     local e=self:_element(options,32)
     local b=e:_button(text(e._options.ButtonText,"Run",100))
     e:_connect(b.Activated,function()
-        if e._callback then e._scope:Spawn(function() protected("Button.callback",e._callback) end) end
+        if e._callback and not e._buttonBusy then
+            e._buttonBusy=true
+            e._scope:Spawn(function()
+                protected("Button.callback",e._callback)
+                e._buttonBusy=false
+            end)
+        end
     end)
     return e
 end
 
 function Tab:CreateToggle(options)
     local e=self:_element(options,30)
-    local b=e:_button("",nil,UDim2.new(1,-46,0,3),UDim2.fromOffset(46,24))
-    corner(e._scope,b,12)
-    local knob=create(e._scope,"Frame",{Size=UDim2.fromOffset(16,16),Position=UDim2.fromOffset(4,4),BackgroundColor3=Color3.fromRGB(245,245,245),BorderSizePixel=0},b)
-    corner(e._scope,knob,8)
-    local status=label(e._scope,e._content,"Off",12,UDim2.new(),UDim2.new(1,-55,1,0))
+    if e._description.Text=="" then
+        local layout=e._row:FindFirstChildOfClass("UIListLayout")
+        if layout then e._scope:Remove(layout) end
+        e._row.AutomaticSize=Enum.AutomaticSize.None
+        e._row.Size=UDim2.new(1,self._container and 0 or -8,0,50)
+        e._title.Size=UDim2.new(1,-112,0,30)
+        e._content.Position=UDim2.new(1,-104,0,0)
+        e._content.Size=UDim2.fromOffset(104,30)
+        e._compactToggle=true
+    end
+    local b=e:_button("",nil,UDim2.new(1,-48,0,2),UDim2.fromOffset(48,26))
+    b.AutoButtonColor=false
+    local shape=b:FindFirstChildOfClass("UICorner")
+    shape.CornerRadius=UDim.new(1,0)
+    local knob=create(e._scope,"Frame",{Size=UDim2.fromOffset(18,18),Position=UDim2.fromOffset(4,4),BackgroundColor3=Color3.fromRGB(225,225,231),BorderSizePixel=0},b)
+    corner(e._scope,knob,9)
+    local status=label(e._scope,e._content,"Off",12,UDim2.new(),UDim2.new(1,-58,1,0))
     e:_state(firstDefined(e._options.CurrentValue,e._options.Default,false),function(v) return type(v)=="boolean",v end,function(v)
         status.Text=v and "On" or "Off"
+        status.TextColor3=v and e._window._palette.Accent or e._window._palette.Muted
         b.BackgroundColor3=v and e._window._palette.Accent or e._window._palette.Control
+        knob.BackgroundColor3=v and Color3.fromRGB(43,35,23) or Color3.fromRGB(225,225,231)
         knob.Position=UDim2.fromOffset(v and 26 or 4,4)
     end)
     e:_connect(b.Activated,function() e:SetValue(not e:GetValue()) end)
@@ -1154,10 +1236,13 @@ function Tab:CreateSlider(options)
     options=optionsOf(options)
     local lo,hi,step=numericRange(options)
     local e=self:_element(options,38)
-    local track=e:_button("",nil,UDim2.fromOffset(0,22),UDim2.new(1,0,0,8))
+    local track=e:_button("",nil,UDim2.fromOffset(8,24),UDim2.new(1,-16,0,8))
+    track.AutoButtonColor=false
     local fill=create(e._scope,"Frame",{Size=UDim2.fromScale(0,1),BorderSizePixel=0},track)
     e._window:_bindColor(fill,"BackgroundColor3","Accent")
     corner(e._scope,fill,5)
+    local thumb=create(e._scope,"Frame",{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0,0.5),Size=UDim2.fromOffset(16,16),BorderSizePixel=0,BackgroundColor3=Color3.fromRGB(245,225,183),ZIndex=track.ZIndex+2},track)
+    corner(e._scope,thumb,8)
     local value=label(e._scope,e._content,"",12,UDim2.new(),UDim2.new(1,-82,0,18))
     local edit=e:_textbox("","",e._content,UDim2.new(1,-76,0,0),UDim2.fromOffset(76,20))
     e._edit=edit
@@ -1167,6 +1252,7 @@ function Tab:CreateSlider(options)
         value.Text=string.format("%g / %g",v,hi)
         edit.Text=string.format("%g",v)
         fill.Size=UDim2.fromScale((v-lo)/(hi-lo),1)
+        thumb.Position=UDim2.fromScale((v-lo)/(hi-lo),0.5)
     end)
     e:_connect(edit.FocusLost,function() if not e:SetValue(tonumber(edit.Text)) then edit.Text=tostring(e:GetValue()) end end)
     local function update(input)
@@ -1212,7 +1298,6 @@ function Tab:CreateNumberInput(options)
     return e
 end
 
--- Dropdown uses a bounded page of results instead of thousands of buttons.
 function Tab:CreateDropdown(options)
     options=optionsOf(options)
     local values,allowed=optionList(options.Options or options.Values or {})
@@ -1337,7 +1422,7 @@ function Tab:CreateKeybind(options)
         local ok,key=pcall(function() return Enum.KeyCode[v] end)
         return ok and key~=nil and key~=Enum.KeyCode.Unknown,v
     end
-    e:_state(firstDefined(options.CurrentKeybind,options.CurrentValue,options.Default,"RightControl"),validate,function(v) b.Text=v end)
+    e:_state(firstDefined(options.CurrentKeybind,options.CurrentValue,options.Default,"F6"),validate,function(v) b.Text=v end)
     e._callback=options.OnChanged
     e:_connect(b.Activated,function()
         local w=e._window
@@ -1389,20 +1474,50 @@ function Tab:CreateImage(options)
     return e
 end
 
-function Tab:CreateCard(options)
-    return self:CreateParagraph(options)
-end
+local Container = {}
+Container.__index = function(_, key) return Container[key] or Tab[key] end
 
-function Tab:CreateThemePicker(options)
-    options=table.clone(options or {})
-    options.Name=options.Name or "Theme"
-    options.Options={"BlackGold","Midnight","Emerald","Classic"}
-    options.Default=self._window._theme
-    local callback=options.Callback
-    local w=self._window
-    options.Callback=function(v) w:SetTheme(v); if callback then callback(v) end end
-    return self:CreateDropdown(options)
+local function makeContainer(tab, options, collapsible)
+    options = optionsOf(options)
+    local e = tab:_element(options, 0)
+    if options.Content then e:SetDescription(tostring(options.Content)) end
+    e._title.Font = Enum.Font.GothamBold
+    e._window:_bindColor(e._title,"TextColor3","Accent")
+    local body = create(e._scope,"Frame",{
+        Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+        BackgroundTransparency=1,LayoutOrder=5,
+    },e._row)
+    create(e._scope,"UIListLayout",{Padding=UDim.new(0,7),SortOrder=Enum.SortOrder.LayoutOrder},body)
+    local c=setmetatable({_container=true,_scope=e._scope,_window=e._window,
+        _elementHandle=e,Name=tab.Name,_tabName=tab._tabName or tab.Name,Page=body},Container)
+    if collapsible then
+        local trigger=button(e._scope,e._row,"",UDim2.new(),UDim2.new(1,0,0,28))
+        trigger.LayoutOrder=4
+        e._window:_bindColor(trigger,"BackgroundColor3","Control")
+        c._trigger=trigger
+        e._scope:Connect(trigger.Activated,function() c:SetExpanded(not body.Visible) end)
+        c:SetExpanded(options.Expanded~=false)
+    end
+    return c
 end
+function Container:IsAlive() return self._elementHandle:IsAlive() end
+function Container:Destroy() self._elementHandle:Destroy() end
+function Container:SetText(v) return self._elementHandle:SetText(v) end
+function Container:SetDescription(v) return self._elementHandle:SetDescription(v) end
+function Container:SetVisible(v) return self._elementHandle:SetVisible(v) end
+function Container:SetExpanded(v)
+    if not self:IsAlive() or type(v)~="boolean" then return false end
+    self.Page.Visible=v
+    if self._trigger then self._trigger.Text=v and "−  Collapse" or "+  Expand" end
+    if not v then
+        local w=self._window
+        if w._popupOwner and w._popupOwner._row:IsDescendantOf(self.Page) then w._popupOwner._closePopup() end
+        if w._pointer and w._pointer.Owner and w._pointer.Owner._row:IsDescendantOf(self.Page) then w._pointer=nil end
+    end
+    return true
+end
+function Tab:CreateCard(options) return makeContainer(self,options,false) end
+function Tab:CreateCollapsible(options) return makeContainer(self,options,true) end
 
 function Tab:Select()
     return self._window:SelectTab(self.Name)
@@ -1411,14 +1526,18 @@ end
 function Tab:Destroy()
     if not self._scope.Alive then return end
     local w=self._window
-    if self.Name=="Home" or self.Name=="Settings" or self.Name=="Search" then return false end
     w._tabs[self.Name]=nil
     self._scope:Destroy()
-    if w._selected==self.Name then w:SelectTab("Home") end
+    if w._selected==self.Name then
+        w._selected=nil
+        local nextTab=next(w._tabs)
+        if nextTab then w:SelectTab(nextTab) end
+    end
     return true
 end
 
 function Window:SetKeybind(value)
+    if not self:IsAlive() then return false end
     if typeof(value)=="EnumItem" and value.EnumType==Enum.KeyCode then value=value.Name end
     if type(value)~="string" then return false end
     local ok,key=pcall(function() return Enum.KeyCode[value] end)
@@ -1427,53 +1546,7 @@ function Window:SetKeybind(value)
     return true
 end
 
--- Wrap navigation without changing the original signature shell.
 
-
--- 10 | Home dashboard and interface preferences ---------------------------
-local Stats = game:GetService("Stats")
-local function readMetric(callback)
-    local ok, value = pcall(callback)
-    if not ok or value == nil then return "N/A" end
-    return tostring(value)
-end
-
-function Window:_localized(element, english, thai)
-    self._translations = self._translations or {}
-    table.insert(self._translations, {Element=element, English=english, Thai=thai})
-    element:SetText(self._language=="Thai" and thai or english)
-    return element
-end
-
-function Window:SetLanguage(language)
-    if language~="English" and language~="Thai" then return false end
-    if not self:IsAlive() then return false end
-    self._language=language
-    for _, entry in ipairs(self._metricCaptions or {}) do
-        if entry.Label.Parent then entry.Label.Text=language=="Thai" and entry.Thai or entry.English end
-    end
-    local names={Home="หน้าแรก",Settings="ตั้งค่า",Search="ค้นหา"}
-    for key,entry in pairs(self._tabs or {}) do
-        if names[key] then
-            entry.DisplayName=language=="Thai" and names[key] or key
-            entry.Title.Text=entry.DisplayName
-        end
-    end
-    if self._panel then self:_layout(false) end
-    for _, entry in ipairs(self._translations or {}) do
-        if entry.Element:IsAlive() then
-            entry.Element:SetText(language=="Thai" and entry.Thai or entry.English)
-        end
-    end
-    return true
-end
-
-function Window:SetOpacity(percent)
-    if not self:IsAlive() or not finite(percent) then return false end
-    self._opacity=math.clamp(percent,65,100)
-    self._panel.BackgroundTransparency=1-self._opacity/100
-    return true
-end
 
 function Window:SetCapsuleMode(mode)
     if not self:IsAlive() or (mode~="Full" and mode~="Logo only") then return false end
@@ -1490,403 +1563,21 @@ function Window:ResetCapsulePosition()
     self:_place(self._capsule,Vector2.new((bounds.X-self._capsule.Size.X.Offset)/2,12))
 end
 
-function Window:_positionFraction(object)
-    local bounds=self:_bounds()
-    return {
-        X=math.clamp((object.Position.X.Offset-6)/math.max(1,bounds.X-object.Size.X.Offset-12),0,1),
-        Y=math.clamp((object.Position.Y.Offset-6)/math.max(1,bounds.Y-object.Size.Y.Offset-12),0,1),
-    }
-end
-
-function Window:_restorePosition(object,position)
-    if type(position)~="table" or not finite(position.X) or not finite(position.Y) then return end
-    local bounds=self:_bounds()
-    self:_place(object,Vector2.new(
-        6+math.clamp(position.X,0,1)*math.max(0,bounds.X-object.Size.X.Offset-12),
-        6+math.clamp(position.Y,0,1)*math.max(0,bounds.Y-object.Size.Y.Offset-12)
-    ))
-end
-
-function Window:GetPreferences()
-    if not self:IsAlive() then return nil end
-    return {
-        Theme=self._theme, Language=self._language, Size=self._sizeMode,
-        Opacity=self._opacity, Animation=self._animation,
-        AnimationSpeed=self._animationSpeed, Keybind=self._keybind.Name,
-        CapsuleMode=self._capsuleMode, Draggable=self._draggable,
-        SidebarCollapsed=self._sidebarCollapsed==true,
-        RefreshInterval=self._refreshInterval, LowPerformance=self._lowPerformance,
-        CustomWidth=self._customSize and self._customSize.X,
-        CustomHeight=self._customSize and self._customSize.Y,
-        Notifications=self._notificationsEnabled~=false,
-        RememberPosition=self._rememberPosition~=false,
-        WindowPosition=self._rememberPosition~=false and self:_positionFraction(self._panel) or nil,
-        CapsulePosition=self._rememberPosition~=false and self:_positionFraction(self._capsule) or nil,
-    }
-end
-
--- Home metrics stay local; no HTTP requests, fingerprinting or telemetry.
-function Window:_buildHome(home, options)
-    local player=Players.LocalPlayer
-    local scope=home._scope
-    local function section(en,th)
-        return self:_localized(home:CreateSection(en),en,th)
-    end
-    local function field(en,th,initial)
-        local e=home:CreateParagraph({Name=en,Content=initial or "N/A"})
-        return self:_localized(e,en,th)
-    end
-    section("Player profile","ข้อมูลผู้เล่น")
-    local avatar=home:_element({Name="Avatar"},64)
-    self:_localized(avatar,"Avatar","รูปโปรไฟล์")
-    local image=create(avatar._scope,"ImageLabel",{
-        Size=UDim2.fromOffset(64,64),BackgroundTransparency=1,
-        ScaleType=Enum.ScaleType.Fit,
-    },avatar._content)
-    corner(avatar._scope,image,12)
-    scope:Spawn(function()
-        local ok,url=pcall(Players.GetUserThumbnailAsync,Players,player.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size100x100)
-        if ok and scope.Alive then image.Image=url end
-    end)
-    field("Account","บัญชี",player.DisplayName.." (@"..player.Name..")")
-    field("User ID","รหัสผู้เล่น",tostring(player.UserId))
-    field("Account age","อายุบัญชี",tostring(player.AccountAge).." days")
-    section("Performance","ประสิทธิภาพ")
-    local metrics=home:_element({Name="Live statistics"},144)
-    self:_localized(metrics,"Live statistics","สถิติขณะใช้งาน")
-    metrics._row.BackgroundTransparency=1
-    local grid=create(metrics._scope,"UIGridLayout",{
-        CellPadding=UDim2.fromOffset(6,6),CellSize=UDim2.new(0.5,-3,0,66),
-        SortOrder=Enum.SortOrder.LayoutOrder,
-    },metrics._content)
-    local captions={}
-    local function metric(en,th)
-        local card=create(metrics._scope,"Frame",{BorderSizePixel=0},metrics._content)
-        self:_bindColor(card,"BackgroundColor3","Surface")
-        corner(metrics._scope,card,10)
-        local heading=label(metrics._scope,card,en,11,UDim2.fromOffset(9,5),UDim2.new(1,-18,0,20))
-        self:_bindColor(heading,"TextColor3","Muted")
-        table.insert(captions,{Label=heading,English=en,Thai=th})
-        local value=label(metrics._scope,card,"N/A",16,UDim2.fromOffset(9,26),UDim2.new(1,-18,0,30))
-        value.Font=Enum.Font.GothamBold
-        value.TextScaled=true
-        create(metrics._scope,"UITextSizeConstraint",{MinTextSize=9,MaxTextSize=16},value)
-        self:_bindColor(value,"TextColor3","Accent")
-        return {SetDescription=function(_,v) if metrics:IsAlive() then value.Text=v end end}
-    end
-    local perf=metric("FPS / minimum","FPS / ต่ำสุด")
-    local pingCard=metric("Ping (one-way)","ปิง (ทางเดียว)")
-    local memory=metric("Client memory","หน่วยความจำ Roblox")
-    local session=metric("Session duration","เวลาใช้งาน")
-    self._metricCaptions=captions
-    local function layoutMetrics()
-        if not metrics:IsAlive() then return end
-        local cols=metrics._content.AbsoluteSize.X>=210 and 2 or 1
-        grid.FillDirectionMaxCells=cols
-        grid.CellSize=UDim2.new(1/cols,-(cols==2 and 3 or 0),0,66)
-        local target=UDim2.new(1,0,0,math.ceil(4/cols)*72)
-        if metrics._content.Size~=target then metrics._content.Size=target end
-    end
-    scope:Connect(metrics._content:GetPropertyChangedSignal("AbsoluteSize"),layoutMetrics)
-    scope:Delay(0,layoutMetrics)
-    section("Device","อุปกรณ์")
-    local device=field("Input capabilities","อุปกรณ์รับข้อมูล")
-    local viewport=field("Viewport","ขนาดพื้นที่แสดงผล")
-    field("Runtime","สภาพแวดล้อม",RunService:IsStudio() and "Roblox Studio" or "Roblox client")
-    -- An optional already-masked label supplied by the host; never query HWID.
-    local deviceLabel=options.DeviceLabel
-    if type(deviceLabel)~="string" or #deviceLabel>32 or not string.match(deviceLabel,"^%*+%s?%x%x%x%x$") then
-        deviceLabel="Not supported by Roblox client API"
-    end
-    field("HWID / device label","รหัสอุปกรณ์",deviceLabel)
-    section("Character","ตัวละคร")
-    local character=field("Character status","สถานะตัวละคร")
-    local movement=field("Movement","การเคลื่อนที่")
-    local position=field("Position XYZ","ตำแหน่ง XYZ")
-    local respawn=field("Respawns since UI start","จำนวนเกิดใหม่หลังเปิด UI","0")
-    section("Game & server","เกมและเซิร์ฟเวอร์")
-    if type(options.Game)=="string" and options.Game~="" then field("Game","ชื่อเกม",text(options.Game,"",100)) end
-    field("Universe / place ID","รหัสเกม / สถานที่",tostring(game.GameId).." / "..tostring(game.PlaceId))
-    field("Server ID","รหัสเซิร์ฟเวอร์",game.JobId~="" and game.JobId or "Studio / N/A")
-    local population=field("Players","จำนวนผู้เล่น")
-    section("ScriptCenter","ScriptCenter")
-    field("Library version","เวอร์ชัน Library",SC.Version)
-    if type(options.Version)=="string" then field("Script version","เวอร์ชันสคริปต์",text(options.Version,"",100)) end
-    if type(options.Description)=="string" and options.Description~="" then field("Information","รายละเอียด",text(options.Description,"",1000)) end
-    if type(options.Changelog)=="string" and options.Changelog~="" then field("Changelog","รายการอัปเดต",text(options.Changelog,"",1000)) end
-    field("Community","ชุมชน","discord.gg/Pb2SWjrqF7")
-    local started=os.clock()
-    local respawns=0
-    local frames,elapsed,slowest=0,0,nil
-    local lastMemory=0
-    local function visible()
-        return self:IsAlive() and self._panel.Visible and self._selected=="Home"
-    end
-    scope:Connect(player.CharacterAdded,function()
-        respawns+=1
-    end)
-    scope:Connect(RunService.RenderStepped,function(dt)
-        if visible() then frames+=1; elapsed+=dt end
-    end)
-    local function refresh()
-        if not visible() then frames=0; elapsed=0; return end
-        local now=os.clock()
-        local fps=elapsed>0 and math.floor(frames/elapsed+0.5) or nil
-        if fps then slowest=slowest and math.min(slowest,fps) or fps end
-        frames=0; elapsed=0
-        local ping=readMetric(function() return string.format("%.0f ms (one-way)",player:GetNetworkPing()*1000) end)
-        perf:SetDescription(tostring(fps or "N/A").." / "..tostring(slowest or "N/A"))
-        pingCard:SetDescription(ping)
-        if now-lastMemory>=5 or lastMemory==0 then
-            memory:SetDescription(readMetric(function() return string.format("%.1f MB",Stats:GetTotalMemoryUsageMb()) end))
-            lastMemory=now
-        end
-        local duration=math.floor(now-started)
-        session:SetDescription(string.format("%02d:%02d:%02d",math.floor(duration/3600),math.floor(duration/60)%60,duration%60))
-        device:SetDescription(string.format("Touch: %s | Keyboard: %s | Mouse: %s | Gamepad: %s",tostring(UIS.TouchEnabled),tostring(UIS.KeyboardEnabled),tostring(UIS.MouseEnabled),tostring(UIS.GamepadEnabled)))
-        local bounds=self:_bounds()
-        viewport:SetDescription(string.format("%d × %d",math.floor(bounds.X),math.floor(bounds.Y)))
-        local char=player.Character
-        local humanoid=char and char:FindFirstChildOfClass("Humanoid")
-        local root=char and char:FindFirstChild("HumanoidRootPart")
-        if root and not root:IsA("BasePart") then root=nil end
-        character:SetDescription(humanoid and string.format("HP %.0f / %.0f | %s | %s",humanoid.Health,humanoid.MaxHealth,humanoid.RigType.Name,humanoid.Health>0 and "Alive" or "Dead") or "N/A")
-        movement:SetDescription(humanoid and string.format("WalkSpeed: %.1f | %s: %.1f",humanoid.WalkSpeed,humanoid.UseJumpPower and "JumpPower" or "JumpHeight",humanoid.UseJumpPower and humanoid.JumpPower or humanoid.JumpHeight) or "N/A")
-        position:SetDescription(root and string.format("%.1f, %.1f, %.1f",root.Position.X,root.Position.Y,root.Position.Z) or "N/A")
-        respawn:SetDescription(tostring(respawns))
-        population:SetDescription(string.format("%d / %d",#Players:GetPlayers(),Players.MaxPlayers))
-    end
-    -- A single scoped update job. Hidden dashboard does not read metrics.
-    scope:Spawn(function()
-        while scope.Alive do
-            protected("Home.refresh",refresh)
-            task.wait(self._lowPerformance and math.max(5,self._refreshInterval) or self._refreshInterval)
-        end
-    end)
-end
-
-function Window:GetHome()
-    return self:IsAlive() and self._tabs.Home or nil
-end
-
-function Window:_buildSettings(tab)
-    local controls={}
-    self._preferenceControls=controls
-    local function add(key,method,en,th,opts)
-        opts=opts or {}
-        opts.Name=en
-        local element=tab[method](tab,opts)
-        self:_localized(element,en,th)
-        if key then controls[key]=element end
-        return element
-    end
-    local function section(en,th) add(nil,"CreateSection",en,th) end
-    local function action(en,th,callback) add(nil,"CreateButton",en,th,{ButtonText="Run / OK",Callback=callback}) end
-    section("Appearance","รูปลักษณ์")
-    add("Theme","CreateDropdown","Theme","ธีม",{Options={"BlackGold","Midnight","Emerald","Classic"},Default="BlackGold",Callback=function(v) self:SetTheme(v) end})
-    add("Language","CreateDropdown","Language","ภาษา",{Options={"English","Thai"},Default="English",Callback=function(v) self:SetLanguage(v) end})
-    add("Opacity","CreateSlider","Panel opacity","ความทึบพื้นหลัง",{Range={65,100},Increment=5,Default=100,Callback=function(v) self:SetOpacity(v) end})
-    section("Window","หน้าต่าง")
-    add("Size","CreateDropdown","Window size","ขนาดหน้าต่าง",{Options={"Auto","Compact","Small","Medium","Large","Custom"},Default="Auto",Callback=function(v)
-        if v=="Custom" then self:SetSize(self._customSize or Vector2.new(600,400)) else self:SetSize(v) end
-    end})
-    local width=add("CustomWidth","CreateNumberInput","Custom width","ความกว้างกำหนดเอง",{Min=280,Max=1600,Default=600})
-    local height=add("CustomHeight","CreateNumberInput","Custom height","ความสูงกำหนดเอง",{Min=220,Max=1000,Default=400})
-    action("Apply custom size","ใช้ขนาดกำหนดเอง",function() self:SetSize(Vector2.new(width:GetValue(),height:GetValue())) end)
-    add("Draggable","CreateToggle","Window dragging","ลากหน้าต่าง",{Default=true,Callback=function(v) self._draggable=v; self._pointer=nil end})
-    add("SidebarCollapsed","CreateToggle","Collapse sidebar","พับเมนูด้านซ้าย",{Default=false,Callback=function(v) self._sidebarCollapsed=v; self:_layout(false) end})
-    add("RememberPosition","CreateToggle","Remember positions in profile","จำตำแหน่งในโปรไฟล์",{Default=true,Callback=function(v) self._rememberPosition=v end})
-    action("Center window","คืนหน้าต่างกลางจอ",function() self:Center() end)
-    section("Capsule & controls","แคปซูลและการควบคุม")
-    add("CapsuleMode","CreateDropdown","Capsule style","รูปแบบแคปซูล",{Options={"Full","Logo only"},Default="Full",Callback=function(v) self:SetCapsuleMode(v) end})
-    action("Reset capsule position","คืนตำแหน่งแคปซูล",function() self:ResetCapsulePosition() end)
-    add("Keybind","CreateKeybind","Toggle UI shortcut","ปุ่มลัดเปิดปิด UI",{CurrentKeybind="RightControl",OnChanged=function(v) self:SetKeybind(v) end})
-    section("Performance","ประสิทธิภาพ")
-    add("Animation","CreateToggle","Animations","ภาพเคลื่อนไหว",{Default=true,Callback=function(v) self:SetAnimation(v) end})
-    add("AnimationSpeed","CreateSlider","Animation duration (s)","ระยะเวลาแอนิเมชัน (วินาที)",{Range={0.05,0.35},Increment=0.05,Default=0.15,Callback=function(v) self._animationSpeed=v end})
-    add("RefreshInterval","CreateSlider","Statistics interval (s)","ช่วงอัปเดตสถิติ (วินาที)",{Range={1,10},Increment=1,Default=1,Callback=function(v) self._refreshInterval=v end})
-    add("LowPerformance","CreateToggle","Low performance mode","โหมดประหยัดทรัพยากร",{Default=false,Callback=function(v) self._lowPerformance=v; if v then self:SetAnimation(false); controls.Animation:SetValue(false,true) end end})
-    section("System","ระบบ")
-    add(nil,"CreateParagraph","Configuration","การบันทึกค่า",{Content="Profiles use session storage or a host-provided storage adapter."})
-    action("Reset interface settings","คืนค่าการตั้งค่า UI",function() self:ResetPreferences() end)
-    action("Unload interface","ปิดและล้าง UI",function()
-        self:Confirm({Title=self._language=="Thai" and "ปิด UI?" or "Unload interface?",Callback=function() self:Destroy() end})
-    end)
-end
-
-function Window:ResetPreferences()
-    if not self:IsAlive() then return false end
-    self._draggable=true
-    self._rememberPosition=true
-    self._sidebarCollapsed=false
-    self._lowPerformance=false
-    self._refreshInterval=1
-    self._animationSpeed=0.15
-    self:SetTheme("BlackGold")
-    self:SetLanguage("English")
-    self:SetOpacity(100)
-    self:SetSize("Auto")
-    self:SetAnimation(true)
-    self:SetCapsuleMode("Full")
-    self:SetKeybind("RightControl")
-    self:Center()
-    self:ResetCapsulePosition()
-    for _,control in pairs(self._preferenceControls or {}) do control:Reset(true) end
-    self._notificationsEnabled=true
-    self:SetAutoSave(false)
-    return true
-end
-
-
--- Keep Settings handles synchronized when the host calls public setters.
-local function syncPreference(window,key,value)
-    local control=window._preferenceControls and window._preferenceControls[key]
-    if control and control:IsAlive() then control:SetValue(value,true) end
-end
-local preferenceSetters={SetTheme="Theme",SetLanguage="Language",SetOpacity="Opacity",SetSize="Size",SetAnimation="Animation",SetCapsuleMode="CapsuleMode",SetKeybind="Keybind"}
-for method,key in pairs(preferenceSetters) do
-    local original=Window[method]
-    Window[method]=function(self,value)
-        local ok=original(self,value)
-        if ok and self._preferenceControls then
-            local preferences=self:GetPreferences()
-            if preferences then
-                syncPreference(self,key,preferences[key])
-                if method=="SetSize" and self._customSize then
-                    syncPreference(self,"CustomWidth",self._customSize.X)
-                    syncPreference(self,"CustomHeight",self._customSize.Y)
-                end
-            end
-        end
-        return ok
-    end
-end
-
--- 11 | Profiles and local storage adapter ---------------------------------
-local HttpService = game:GetService("HttpService")
-local memoryProfiles = {}
-local function profileName(name)
-    return type(name)=="string" and #name<=48 and name:match("^[%w_-]+$")~=nil
-end
-local function encodeValue(value)
-    if typeof(value)=="Color3" then return {Kind="Color3",R=value.R,G=value.G,B=value.B} end
-    return {Kind="Value",Value=clone(value)}
-end
-local function decodeValue(item)
-    if type(item)~="table" then error("Invalid profile value") end
-    if item.Kind=="Color3" and finite(item.R) and finite(item.G) and finite(item.B) then
-        return Color3.new(math.clamp(item.R,0,1),math.clamp(item.G,0,1),math.clamp(item.B,0,1))
-    end
-    assert(item.Kind=="Value","Unknown value format")
-    return clone(item.Value)
-end
-function Window:_profileKey(name)
-    assert(profileName(name),"Invalid profile name")
-    return self._profileNamespace..":"..name
-end
-function Window:ExportConfig()
-    local values={}
-    for e in pairs(self._elements or {}) do
-        if e:IsAlive() and e._flag and e._options.Flag and not e._systemControl then
-            values[e._flag]=encodeValue(e:GetValue())
-        end
-    end
-    return HttpService:JSONEncode({Schema=1,Preferences=self:GetPreferences(),Values=values})
-end
-function Window:ImportConfig(raw,applyCallbacks)
-    if not self:IsAlive() then return false,"Window closed" end
-    if type(raw)~="string" or #raw>524288 then return false,"Invalid profile size" end
-    local ok,data=protected("Config.decode",function() return HttpService:JSONDecode(raw) end)
-    if not ok or type(data)~="table" or data.Schema~=1 or type(data.Values)~="table" then return false,"Invalid or unsupported profile" end
-    local applied,skipped=0,0
-    local prefs=type(data.Preferences)=="table" and data.Preferences or {}
-    local setters={Theme="SetTheme",Language="SetLanguage",Opacity="SetOpacity",Size="SetSize",Animation="SetAnimation",CapsuleMode="SetCapsuleMode",Keybind="SetKeybind"}
-    for key,method in pairs(setters) do
-        if prefs[key]~=nil then protected("Config.preference",self[method],self,prefs[key]) end
-    end
-    for e in pairs(self._elements or {}) do
-        if e:IsAlive() and e._flag and e._options.Flag and not e._systemControl and data.Values[e._flag]~=nil then
-            local valid,value=protected("Config.value",decodeValue,data.Values[e._flag])
-            if valid and e:SetValue(value,not applyCallbacks) then applied+=1 else skipped+=1 end
-        end
-    end
-    self:_restoreExtraPreferences(prefs)
-    return true,{Applied=applied,Skipped=skipped}
-end
-function Window:SaveConfig(name)
-    if not self:IsAlive() or not profileName(name) then return false,"Invalid profile" end
-    local ok,raw=protected("Config.export",self.ExportConfig,self)
-    if not ok or #raw>524288 then return false,"Cannot encode profile" end
-    local key=self:_profileKey(name)
-    if self._storage then
-        local success,result=protected("Config.write",self._storage.Write,key,raw)
-        if not success or result==false then return false,"Storage write failed" end
-    else memoryProfiles[key]=raw end
-    return true
-end
-function Window:LoadConfig(name,applyCallbacks)
-    name=name or "default"
-    if not self:IsAlive() or not profileName(name) then return false,"Invalid profile" end
-    local key=self:_profileKey(name)
-    local raw=memoryProfiles[key]
-    if self._storage then
-        local ok,result=protected("Config.read",self._storage.Read,key)
-        if not ok then return false,"Storage read failed" end
-        raw=result
-    end
-    local imported,result=self:ImportConfig(raw,applyCallbacks==true)
-    if imported and name==self._autoProfile then
-        local ok,baseline=protected("AutoSave.loadedBaseline",self.ExportConfig,self)
-        self._lastAutoExport=ok and baseline or nil
-    end
-    return imported,result
-end
-function Window:DeleteConfig(name)
-    if not self:IsAlive() or not profileName(name) then return false,"Invalid profile" end
-    local key=self:_profileKey(name)
-    if self._storage then
-        local ok,result=protected("Config.delete",self._storage.Delete,key)
-        return ok and result~=false
-    end
-    memoryProfiles[key]=nil
-    return true
-end
-function Window:ListConfigs()
-    if not self:IsAlive() then return {} end
-    local names={}
-    if self._storage then
-        local ok,result=protected("Config.list",self._storage.List,self._profileNamespace..":")
-        if ok and type(result)=="table" then
-            for _,name in ipairs(result) do if profileName(name) then table.insert(names,name) end end
-        end
-    else
-        local prefix=self._profileNamespace..":"
-        for key in pairs(memoryProfiles) do
-            if key:sub(1,#prefix)==prefix then table.insert(names,key:sub(#prefix+1)) end
-        end
-    end
-    local unique,seen={},{}
-    for _,name in ipairs(names) do
-        if not seen[name] then
-            seen[name]=true
-            table.insert(unique,name)
-        end
-    end
-    table.sort(unique)
-    return unique
-end
--- 12 | Notifications and modal dialogs ------------------------------------
 function Window:Notify(options)
     if not self:IsAlive() or self._notificationsEnabled==false then return end
     options=optionsOf(options)
     local scope=self._scope:Child("Notification")
-    local frame=create(scope,"Frame",{Size=UDim2.fromOffset(245,66),BackgroundColor3=self._palette.Surface,BorderSizePixel=0},self._notificationHost)
-    corner(scope,frame,10)
+    local frame=create(scope,"Frame",{Size=UDim2.new(1,0,0,66),BackgroundColor3=self._palette.Surface,BorderSizePixel=0},self._notificationHost)
+    corner(scope,frame,14)
+    create(scope,"UIStroke",{Color=self._palette.Accent,Transparency=.65,Thickness=1},frame)
+    local accent=create(scope,"Frame",{Position=UDim2.fromOffset(4,12),Size=UDim2.new(0,3,1,-24),BackgroundColor3=self._palette.Accent,BorderSizePixel=0},frame)
+    corner(scope,accent,2)
     local title=label(scope,frame,text(options.Title,BRAND,80),14,UDim2.fromOffset(10,5),UDim2.new(1,-38,0,23))
     title.TextColor3=self._palette.Accent
     local content=label(scope,frame,text(options.Content or options.Description,"",240),11,UDim2.fromOffset(10,29),UDim2.new(1,-20,0,32))
     content.TextWrapped=true
-    local close=button(scope,frame,"×",UDim2.new(1,-26,0,3),UDim2.fromOffset(23,23))
+    local close=button(scope,frame,"",UDim2.new(1,-26,0,3),UDim2.fromOffset(23,23))
+    drawIcon(scope,close,"close",UDim2.new(.5,-7,.5,-7),14,self._palette.Muted)
     scope:Connect(close.Activated,function() scope:Destroy() end)
     local duration=finite(options.Duration) and math.clamp(options.Duration,1,30) or 4
     scope:Delay(duration,function() scope:Destroy() end)
@@ -1905,6 +1596,7 @@ function Window:Confirm(options)
     if not self:IsAlive() then return end
     options=optionsOf(options)
     if self._dialog then self._dialog:Destroy() end
+    self._keyCapture=nil
     if self._loadingScope then self._loadingScope:Destroy() end
     if self._popupOwner then self._popupOwner._closePopup() end
     self._pointer=nil
@@ -1914,11 +1606,13 @@ function Window:Confirm(options)
     local overlay=create(scope,"TextButton",{Text="",Size=UDim2.fromScale(1,1),BackgroundColor3=Color3.new(),BackgroundTransparency=0.35,AutoButtonColor=false,ZIndex=30},self._root)
     local panel=create(scope,"Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.new(0.9,0,0,150),BackgroundColor3=self._palette.Surface,ZIndex=31},overlay)
     create(scope,"UISizeConstraint",{MaxSize=Vector2.new(340,150)},panel)
-    corner(scope,panel,12)
+    corner(scope,panel,16)
+    create(scope,"UIStroke",{Color=self._palette.Accent,Transparency=.55,Thickness=1},panel)
     local title=label(scope,panel,text(options.Title,"Confirm",100),16,UDim2.fromOffset(12,8),UDim2.new(1,-24,0,28)); title.ZIndex=32
     local body=label(scope,panel,text(options.Content,"Continue?",250),12,UDim2.fromOffset(12,40),UDim2.new(1,-24,0,55)); body.TextWrapped=true; body.ZIndex=32
     local yes=button(scope,panel,text(options.ConfirmText,"Confirm",24),UDim2.new(.5,4,1,-42),UDim2.new(.5,-16,0,32)); yes.ZIndex=32
-    local no=button(scope,panel,"Cancel",UDim2.new(0,12,1,-42),UDim2.new(.5,-16,0,32)); no.ZIndex=32
+    yes.BackgroundColor3=self._palette.Accent; yes.TextColor3=Color3.fromRGB(25,22,17)
+    local no=button(scope,panel,text(options.CancelText,"Cancel",24),UDim2.new(0,12,1,-42),UDim2.new(.5,-16,0,32)); no.ZIndex=32
     scope:Connect(no.Activated,function() scope:Destroy() end)
     scope:Connect(yes.Activated,function()
         scope:Destroy()
@@ -1928,7 +1622,26 @@ end
 function SC:Confirm(options)
     if active then return active:Confirm(options) end
 end
--- 13 | Cross-tab search and profile controls -------------------------------
+function Window:GetValues()
+    if not self:IsAlive() then return {} end
+    return self._state:Snapshot()
+end
+
+function Window:GetValue(flag)
+    if not self:IsAlive() then return nil end
+    return self._state:Get(flag)
+end
+
+function Window:SetValue(flag,value,silent)
+    if not self:IsAlive() then return false,"Window closed" end
+    for element in pairs(self._elements or {}) do
+        if element._flag==flag and element:IsAlive() then
+            return element:SetValue(value,silent)
+        end
+    end
+    return false,"Unknown flag"
+end
+
 function Window:Search(query)
     if type(query)~="string" then return {} end
     local result={}
@@ -1947,35 +1660,6 @@ function Window:Search(query)
     return result
 end
 
-function Tab:CreateConfigManager()
-    local w=self._window
-    local function localize(e,en,th)
-        return w:_localized(e,en,th)
-    end
-    localize(self:CreateSection("Configuration profiles"),"Configuration profiles","โปรไฟล์การตั้งค่า")
-    local name=localize(self:CreateInput({Name="Profile name",Default="default"}),"Profile name","ชื่อโปรไฟล์")
-    local status=self:CreateLabel("Storage: "..(w._storage and "Host adapter" or "Session only"))
-    local function report(ok,message)
-        status:SetText(ok and "Success" or tostring(message or "Operation failed"))
-    end
-    localize(self:CreateButton({Name="Save profile",Callback=function() report(w:SaveConfig(name:GetValue())) end}),"Save profile","บันทึกโปรไฟล์")
-    localize(self:CreateButton({Name="Load profile (values only)",Callback=function() report(w:LoadConfig(name:GetValue(),false)) end}),"Load profile (values only)","โหลดเฉพาะค่า")
-    self:CreateButton({Name="Load and apply profile",Callback=function()
-        local selected=name:GetValue()
-        w:Confirm({Title="Apply profile?",Content="Saved values may activate callbacks.",Callback=function()
-            report(w:LoadConfig(selected,true))
-        end})
-    end})
-    self:CreateButton({Name="Delete profile",Callback=function()
-        local selected=name:GetValue()
-        w:Confirm({Title="Delete profile?",Content=selected,Callback=function() report(w:DeleteConfig(selected)) end})
-    end})
-    localize(self:CreateButton({Name="List profiles",Callback=function() status:SetText(table.concat(w:ListConfigs(),", ")) end}),"List profiles","รายการโปรไฟล์")
-    return status
-end
-
-
--- 14 | Release candidate: advanced controls and preference recovery --------
 local function beginControl(element, target, update)
     element:_connect(target.InputBegan, function(input)
         local kind = input.UserInputType
@@ -2090,74 +1774,6 @@ function Tab:CreateColorPicker(options)
     return e
 end
 
-function Window:_restoreExtraPreferences(prefs)
-    if prefs.Size=="Custom" and finite(prefs.CustomWidth) and finite(prefs.CustomHeight) then
-        self:SetSize(Vector2.new(prefs.CustomWidth,prefs.CustomHeight))
-    end
-    for _,key in ipairs({"Draggable","SidebarCollapsed","LowPerformance","Notifications"}) do
-        if type(prefs[key])=="boolean" then
-            local fields={Draggable="_draggable",SidebarCollapsed="_sidebarCollapsed",LowPerformance="_lowPerformance",Notifications="_notificationsEnabled"}
-            self[fields[key]]=prefs[key]
-            syncPreference(self,key,prefs[key])
-        end
-    end
-    if finite(prefs.AnimationSpeed) then
-        self._animationSpeed=math.clamp(prefs.AnimationSpeed,.05,.35)
-        syncPreference(self,"AnimationSpeed",self._animationSpeed)
-    end
-    if finite(prefs.RefreshInterval) then
-        self._refreshInterval=math.clamp(prefs.RefreshInterval,1,10)
-        syncPreference(self,"RefreshInterval",self._refreshInterval)
-    end
-    self:_layout(false)
-    if type(prefs.RememberPosition)=="boolean" then
-        self._rememberPosition=prefs.RememberPosition
-        syncPreference(self,"RememberPosition",prefs.RememberPosition)
-    end
-    if self._rememberPosition~=false then
-        if type(prefs.WindowPosition)=="table" or type(prefs.CapsulePosition)=="table" then self._restoredPositions=true end
-        self:_restorePosition(self._panel,prefs.WindowPosition)
-        self:_restorePosition(self._capsule,prefs.CapsulePosition)
-    end
-end
-
-function Window:SetAutoSave(enabled, profile)
-    if not self:IsAlive() or type(enabled)~="boolean" then return false end
-    profile=profile or self._autoProfile or "default"
-    if not profileName(profile) then return false end
-    self._autoSave=enabled
-    self._autoProfile=profile
-    local ok,raw=protected("AutoSave.baseline",self.ExportConfig,self)
-    self._lastAutoExport=ok and raw or nil
-    if self._autoSaveControl then self._autoSaveControl:SetValue(enabled,true) end
-    return true
-end
-
-local function sameProfileJson(a,b)
-    if a==b then return true end
-    if type(a)~="string" or type(b)~="string" then return false end
-    local ok,result=pcall(function()
-        return equal(HttpService:JSONDecode(a),HttpService:JSONDecode(b))
-    end)
-    return ok and result==true
-end
-
-function Window:_startAutoSave()
-    local function tick()
-        if not self:IsAlive() then return end
-        if self._autoSave then
-            local ok,raw=protected("AutoSave.export",self.ExportConfig,self)
-            if ok and not sameProfileJson(raw,self._lastAutoExport) then
-                local saved=self:SaveConfig(self._autoProfile)
-                if saved then self._lastAutoExport=raw end
-            end
-        end
-        if self:IsAlive() then self._scope:Delay(5,tick) end
-    end
-    self._scope:Delay(5,tick)
-end
-
--- Tooltips are explicit inline help controls, usable on touch as well as PC.
 function Tab:CreateTooltip(options)
     options=optionsOf(options)
     local help=self:CreateParagraph({Name=options.Name or "Help",Content=options.Content or options.Desc or ""})
@@ -2171,10 +1787,9 @@ end
 
 function Tab:CreateGroup(options)
     options=optionsOf(options)
-    return self:CreateSection(options)
+    return makeContainer(self,options,false)
 end
 
--- Subtabs use a separate navigation page, retaining the original tab API.
 function Tab:CreateSubTab(options)
     options=optionsOf(options)
     local copy=clone(options)
@@ -2194,7 +1809,8 @@ function Window:CreateLoading(options)
     scope:Add(function() if self._loadingScope==scope then self._loadingScope=nil end end)
     local overlay=create(scope,"TextButton",{Text="",AutoButtonColor=false,Size=UDim2.fromScale(1,1),BackgroundColor3=Color3.new(),BackgroundTransparency=.35,ZIndex=40},self._root)
     local panel=create(scope,"Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.new(.85,0,0,110),BackgroundColor3=self._palette.Surface,ZIndex=41},overlay)
-    corner(scope,panel,12)
+    corner(scope,panel,16)
+    create(scope,"UIStroke",{Color=self._palette.Accent,Transparency=.55,Thickness=1},panel)
     create(scope,"UISizeConstraint",{MaxSize=Vector2.new(320,110)},panel)
     local title=label(scope,panel,text(options.Title,"ScriptCenter",80),15,UDim2.fromOffset(12,8),UDim2.new(1,-24,0,24))
     title.ZIndex=42
@@ -2219,7 +1835,6 @@ function Window:CreateLoading(options)
     end
     function handle:Destroy() scope:Destroy() end
     handle:SetValue(options.Default or 0)
-    -- A bounded lifetime prevents a forgotten overlay from blocking the game.
     local timeout=finite(options.Timeout) and math.clamp(options.Timeout,1,120) or 30
     scope:Delay(timeout,function() scope:Destroy() end)
     return handle
@@ -2227,10 +1842,6 @@ end
 
 
 function Window:_buildSignature(gui,options)
-    self._profileNamespace=tostring(game.GameId)..":"..tostring(game.PlaceId)
-    if type(options.ConfigId)=="string" and profileName(options.ConfigId) then self._profileNamespace=self._profileNamespace..":"..options.ConfigId end
-    local storage=options.Storage
-    if type(storage)=="table" and type(storage.Read)=="function" and type(storage.Write)=="function" and type(storage.Delete)=="function" and type(storage.List)=="function" then self._storage=storage end
     local scope=self._scope
     self._colors={}
     self._tabs={}
@@ -2243,54 +1854,64 @@ function Window:_buildSignature(gui,options)
     local panel=create(scope,"CanvasGroup",{Name="Signature",Size=UDim2.fromOffset(600,400),Position=UDim2.fromOffset(0,0),BorderSizePixel=0},self._root)
     self._panel=panel
     self:_bindColor(panel,"BackgroundColor3","Background")
-    corner(scope,panel,14)
+    corner(scope,panel,18)
     local stroke=create(scope,"UIStroke",{Thickness=1,Transparency=0.35},panel)
     self:_bindColor(stroke,"Color","Accent")
-    local header=create(scope,"Frame",{Size=UDim2.new(1,0,0,54),BorderSizePixel=0},panel)
+    local header=create(scope,"Frame",{Position=UDim2.fromOffset(8,8),Size=UDim2.new(1,-16,0,48),BorderSizePixel=0},panel)
     self:_bindColor(header,"BackgroundColor3","Surface")
+    corner(scope,header,13)
     local separator=create(scope,"Frame",{Position=UDim2.new(0,12,1,-1),Size=UDim2.new(1,-24,0,1),BorderSizePixel=0,BackgroundTransparency=0.8},header)
     self:_bindColor(separator,"BackgroundColor3","Accent")
     local drag=create(scope,"Frame",{Size=UDim2.new(1,-132,1,0),BackgroundTransparency=1,Active=true},header)
-    local fallback=label(scope,drag,"SC",14,UDim2.fromOffset(12,10),UDim2.fromOffset(34,34))
+    local fallback=label(scope,drag,"SC",14,UDim2.fromOffset(10,7),UDim2.fromOffset(34,34))
     fallback.TextXAlignment=Enum.TextXAlignment.Center
     self:_bindColor(fallback,"TextColor3","Accent")
-    local logo=create(scope,"ImageLabel",{Image=LOGO,BackgroundTransparency=1,Position=UDim2.fromOffset(12,10),Size=UDim2.fromOffset(34,34)},drag)
+    local logo=create(scope,"ImageLabel",{Image=LOGO,BackgroundTransparency=1,Position=UDim2.fromOffset(10,7),Size=UDim2.fromOffset(34,34)},drag)
     corner(scope,logo,9)
     scope:Connect(logo:GetPropertyChangedSignal("IsLoaded"),function() fallback.Visible=not logo.IsLoaded end)
     fallback.Visible=not logo.IsLoaded
     local brand=label(scope,drag,BRAND,15,UDim2.fromOffset(56,7),UDim2.new(1,-60,0,22))
     brand.Font=Enum.Font.GothamBold
     self:_bindColor(brand,"TextColor3","Accent")
-    local subtitle=text(options.Game,"",60)
+    local subtitle=text(options.Game or options.Name or options.Title,"",60)
     local sub=label(scope,drag,subtitle~="" and subtitle or "Signature Interface",10,UDim2.fromOffset(56,29),UDim2.new(1,-60,0,16))
     self:_bindColor(sub,"TextColor3","Muted")
-    local fold=button(scope,header,"≡",UDim2.new(1,-128,0,10),UDim2.fromOffset(28,34))
-    local minimize=button(scope,header,"−",UDim2.new(1,-96,0,10),UDim2.fromOffset(28,34))
-    local maximize=button(scope,header,"□",UDim2.new(1,-64,0,10),UDim2.fromOffset(28,34))
-    local close=button(scope,header,"×",UDim2.new(1,-32,0,10),UDim2.fromOffset(28,34))
-    self._sidebar=create(scope,"Frame",{Position=UDim2.fromOffset(0,54),Size=UDim2.new(0,145,1,-58),BorderSizePixel=0},panel)
+    local fold=button(scope,header,"≡",UDim2.new(1,-128,0,9),UDim2.fromOffset(28,30))
+    local minimize=button(scope,header,"−",UDim2.new(1,-96,0,9),UDim2.fromOffset(28,30))
+    local maximize=button(scope,header,"□",UDim2.new(1,-64,0,9),UDim2.fromOffset(28,30))
+    local close=button(scope,header,"×",UDim2.new(1,-32,0,9),UDim2.fromOffset(28,30))
+    for _,item in ipairs({{fold,"menu"},{minimize,"minus"},{maximize,"maximize"},{close,"close"}}) do
+        item[1].Text=""
+        drawIcon(scope,item[1],item[2],UDim2.new(.5,-8,.5,-8),16,self._palette.Muted)
+    end
+    self._sidebar=create(scope,"Frame",{Position=UDim2.fromOffset(10,66),Size=UDim2.new(0,144,1,-76),BorderSizePixel=0},panel)
     self:_bindColor(self._sidebar,"BackgroundColor3","Surface")
+    corner(scope,self._sidebar,12)
     self._nav=create(scope,"ScrollingFrame",{Position=UDim2.fromOffset(6,10),Size=UDim2.new(1,-12,1,-20),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y},self._sidebar)
     create(scope,"UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},self._nav)
     self._content=create(scope,"Frame",{BackgroundTransparency=1,ClipsDescendants=true},panel)
     local grip=button(scope,panel,"◢",UDim2.new(1,-24,1,-24),UDim2.fromOffset(24,24))
+    grip.Text=""
+    local gripIcon=drawIcon(scope,grip,"resize",UDim2.fromOffset(4,4),16,self._palette.Muted)
     grip.ZIndex=5
-    local capsule=create(scope,"Frame",{Size=UDim2.fromOffset(148,36),Position=UDim2.fromOffset(12,12),BorderSizePixel=0,Active=true,Visible=false},self._root)
+    gripIcon.ZIndex=6
+    for _,part in ipairs(gripIcon:GetChildren()) do if part:IsA("Frame") then part.ZIndex=6 end end
+    local capsule=create(scope,"Frame",{Size=UDim2.fromOffset(166,44),Position=UDim2.fromOffset(12,12),BorderSizePixel=0,Active=true,Visible=false},self._root)
     self._capsule=capsule
     self:_bindColor(capsule,"BackgroundColor3","Surface")
-    corner(scope,capsule,18)
+    corner(scope,capsule,22)
+    capsule.ClipsDescendants=true
     local cs=create(scope,"UIStroke",{Thickness=1,Transparency=0.2},capsule)
     self:_bindColor(cs,"Color","Accent")
-    local capLogo=create(scope,"ImageLabel",{Image=LOGO,Size=UDim2.fromOffset(26,26),Position=UDim2.fromOffset(5,5),BackgroundTransparency=1},capsule)
-    corner(scope,capLogo,13)
-    local capFallback=label(scope,capsule,"SC",10,UDim2.fromOffset(5,5),UDim2.fromOffset(26,26))
+    local capLogo=create(scope,"ImageLabel",{Image=LOGO,Size=UDim2.fromOffset(32,32),Position=UDim2.fromOffset(6,6),ScaleType=Enum.ScaleType.Fit,BackgroundTransparency=1},capsule)
+    corner(scope,capLogo,16)
+    local capFallback=label(scope,capsule,"SC",10,UDim2.fromOffset(6,6),UDim2.fromOffset(32,32))
     capFallback.TextXAlignment=Enum.TextXAlignment.Center
     self:_bindColor(capFallback,"TextColor3","Accent")
     scope:Connect(capLogo:GetPropertyChangedSignal("IsLoaded"),function() capFallback.Visible=not capLogo.IsLoaded end)
     capFallback.Visible=not capLogo.IsLoaded
-    local capText=label(scope,capsule,BRAND,12,UDim2.fromOffset(36,0),UDim2.new(1,-56,1,0))
-    local capArrow=label(scope,capsule,"▾",12,UDim2.new(1,-17,0,0),UDim2.fromOffset(13,36))
-    self:_bindColor(capArrow,"TextColor3","Accent")
+    local capText=label(scope,capsule,BRAND,12,UDim2.fromOffset(46,0),UDim2.new(1,-68,1,0))
+    local capArrow=drawIcon(scope,capsule,"chevron",UDim2.new(1,-23,0.5,-8),16,self._palette.Accent)
     self._capsuleArrow=capArrow
     capText.Font=Enum.Font.GothamMedium
     self:_bindColor(capText,"TextColor3","Accent")
@@ -2301,70 +1922,32 @@ function Window:_buildSignature(gui,options)
     scope:Connect(fold.Activated,function()
         self._sidebarCollapsed=not self._sidebarCollapsed
         self:_layout(false)
-        local control=self._preferenceControls and self._preferenceControls.SidebarCollapsed
-        if control then control:SetValue(self._sidebarCollapsed,true) end
     end)
     scope:Connect(minimize.Activated,function() self:SetVisible(false) end)
     scope:Connect(maximize.Activated,function() self._maximized=not self._maximized; self:_layout(true) end)
     scope:Connect(close.Activated,function()
         self:Confirm({Title="Unload interface?",Callback=function() self:Destroy() end})
     end)
-    scope:Connect(self._root:GetPropertyChangedSignal("AbsoluteSize"),function() self:_layout(false) end)
-    self._language="English"
-    self._opacity=100
+    scope:Connect(self._root:GetPropertyChangedSignal("AbsoluteSize"),function()
+        if self._needsCenter and self:_bounds().X>=20 and self:_bounds().Y>=20 then
+            self._needsCenter=false; self:Center(); self:ResetCapsulePosition()
+        else self:_layout(false) end
+    end)
     self._animationSpeed=0.15
     self._capsuleMode="Full"
     self._draggable=true
-    self._refreshInterval=1
-    self._lowPerformance=false
     self._capsuleText=capText
-    local home=self:CreateTab({Name="Home"})
-    local settings=self:CreateTab({Name="Settings"})
-    self:_buildHome(home,options)
-    self:_buildSettings(settings)
-    scope:Delay(0,function()
-        if not self._restoredPositions then self:Center(); self:ResetCapsulePosition() end
-    end)
-    self:SelectTab("Home")
-    self._notificationHost=create(self._scope,"Frame",{AnchorPoint=Vector2.new(1,1),Position=UDim2.new(1,-10,1,-10),Size=UDim2.fromOffset(245,214),BackgroundTransparency=1},self._root)
-    create(self._scope,"UIListLayout",{VerticalAlignment=Enum.VerticalAlignment.Bottom,Padding=UDim.new(0,6)},self._notificationHost)
-    self._tabs.Settings:CreateConfigManager()
-    local search=self:CreateTab({Name="Search",Icon="list"})
-    local input=search:CreateInput({Name="Find features",Default="",Placeholder="Search all tabs"})
-    local results={}
-    search:CreateButton({Name="Search",Callback=function()
-        for _,e in ipairs(results) do e:Destroy() end
-        table.clear(results)
-        local found=self:Search(input:GetValue())
-        for i=1,math.min(#found,50) do
-            local item=found[i]
-            table.insert(results,search:CreateButton({Name=item.Tab.." / "..item.Name,Callback=function()
-                if item.Element:IsAlive() then
-                    self:SelectTab(item.Tab)
-                    local page=self._tabs[item.Tab].Page
-                    page.CanvasPosition=Vector2.new(0,math.max(0,item.Element._row.AbsolutePosition.Y-page.AbsolutePosition.Y+page.CanvasPosition.Y))
-                end
-            end}))
-        end
-        if #found==0 then table.insert(results,search:CreateLabel("No results")) end
-    end})
-    self:SelectTab("Home")
     self._notificationsEnabled=true
-    local settings=self._tabs.Settings
-    self._preferenceControls.Notifications=settings:CreateToggle({Name="Notifications",Default=true,Callback=function(v) self._notificationsEnabled=v end})
-    self:_localized(self._preferenceControls.Notifications,"Notifications","การแจ้งเตือน")
-    local config=options.ConfigurationSaving
-    local profile=type(config)=="table" and config.FileName or "default"
-    if not profileName(profile) then profile="default" end
-    local enable=type(config)=="table" and config.Enabled~=false and config.AutoSave==true
-    self:SetAutoSave(enable,profile)
-    local toggle=settings:CreateToggle({Name="Auto save (selected profile)",Default=enable,Callback=function(v) self:SetAutoSave(v) end})
-    self._autoSaveControl=toggle
-    self:_localized(toggle,"Auto save (selected profile)","บันทึกอัตโนมัติ (โปรไฟล์ที่เลือก)")
-    self:_startAutoSave()
+    self:SetSize(options.Size or "Medium")
+    self._needsCenter=self:_bounds().X<20 or self:_bounds().Y<20
+    self:Center()
+    self:ResetCapsulePosition()
+    if options.CapsuleMode == "Logo only" then self:SetCapsuleMode("Logo only"); self:ResetCapsulePosition() end
+    self._notificationHost=create(self._scope,"Frame",{AnchorPoint=Vector2.new(1,1),Position=UDim2.new(1,-10,1,-10),Size=UDim2.fromOffset(math.min(245,math.max(1,self:_bounds().X-20)),214),BackgroundTransparency=1},self._root)
+    create(self._scope,"UIListLayout",{VerticalAlignment=Enum.VerticalAlignment.Bottom,Padding=UDim.new(0,6)},self._notificationHost)
+
 end
 
--- Explicit Studio test runner; it creates and destroys a temporary window.
 function SC:RunUITests()
     assert(not active,"Close the current window before running UI tests")
     local results={}
@@ -2396,24 +1979,24 @@ function SC:RunUITests()
         assert(c:SetValue("#FF0000",true))
         assert(not c:SetValue("bad",true))
     end)
-    test("Profile round trip",function()
-        local raw=w:ExportConfig()
-        assert(w:ImportConfig(raw,false))
-        assert(not w:ImportConfig("{broken",false))
-    end)
     test("Theme and visibility",function()
-        for _,name in ipairs({"Midnight","Emerald","Classic","BlackGold"}) do assert(w:SetTheme(name)) end
+        assert(w:SetTheme("BlackGold")); assert(not w:SetTheme("Midnight"))
         for i=1,100 do w:SetVisible(false); w:SetVisible(true) end
+    end)
+    test("Size presets and capsule modes",function()
+        for _,size in ipairs({"Compact","Small","Medium","Large"}) do assert(w:SetSize(size)) end
+        assert(w:SetSize(Vector2.new(500,350)))
+        assert(not w:SetSize("Invalid"))
+        assert(w:SetCapsuleMode("Logo only"))
+        assert(w:SetCapsuleMode("Full"))
+        assert(not w:SetCapsuleMode("Invalid"))
+        w:Center()
     end)
     test("Loading cleanup",function()
         local loading=w:CreateLoading({Default=25})
         assert(loading:SetValue(100))
         loading:Destroy()
         assert(not loading:SetValue(0))
-    end)
-    test("Profile equality",function()
-        assert(sameProfileJson('{"a":1,"b":2}','{"b":2,"a":1}'))
-        assert(not sameProfileJson('{"a":1}','{"a":2}'))
     end)
     test("Tab lifecycle",function()
         local temporary=w:CreateTab("Temporary")
@@ -2423,6 +2006,16 @@ function SC:RunUITests()
         assert(not control:IsAlive())
         assert(w._state.Entries.temporary==nil)
         assert(not w:SelectTab("Temporary"))
+    end)
+    test("Container lifecycle",function()
+        local group=tab:CreateGroup({Name="Group"})
+        local child=group:CreateToggle({Flag="group_child",Default=false})
+        assert(child:SetValue(true,true))
+        group:Destroy()
+        assert(not child:IsAlive() and w:GetValue("group_child")==nil)
+        local fold=tab:CreateCollapsible({Name="Fold",Expanded=false})
+        assert(not fold.Page.Visible and fold:SetExpanded(true) and fold.Page.Visible)
+        fold:Destroy()
     end)
     test("Destroy",function()
         w:Destroy()

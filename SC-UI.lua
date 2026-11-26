@@ -484,6 +484,10 @@ function SC:CreateWindow(options)
             window:Destroy()
         end)
         window:_buildSignature(gui, options)
+        if options.Home == true or type(options.Home) == "table" then
+            local homeOptions = type(options.Home) == "table" and options.Home or options
+            window:CreateHome(homeOptions)
+        end
     end)
     if not ok then
         window:Destroy()
@@ -1946,6 +1950,151 @@ function Window:_buildSignature(gui,options)
     self._notificationHost=create(self._scope,"Frame",{AnchorPoint=Vector2.new(1,1),Position=UDim2.new(1,-10,1,-10),Size=UDim2.fromOffset(math.min(245,math.max(1,self:_bounds().X-20)),214),BackgroundTransparency=1},self._root)
     create(self._scope,"UIListLayout",{VerticalAlignment=Enum.VerticalAlignment.Bottom,Padding=UDim.new(0,6)},self._notificationHost)
 
+end
+
+-- Home dashboard: isolated from the existing window chrome and components.
+function Window:CreateHome(options)
+    options = optionsOf(options)
+    if self._tabs.Home then return self._tabs.Home end
+    local tab = self:CreateTab({Name="Home",Icon="home"})
+    local scope = tab._scope
+    local page = tab.Page
+    tab.Title.Visible = false
+    local player = Players.LocalPlayer
+    local gold = Color3.fromRGB(225,196,139)
+    local muted = Color3.fromRGB(165,162,168)
+    local white = Color3.fromRGB(240,238,235)
+    local function txt(parent,value,size,x,y,w,h,color,bold)
+        local t=label(scope,parent,value,size,UDim2.new(0,x,0,y),UDim2.new(1,w,0,h))
+        t.TextColor3=color or white
+        t.Font=bold and Enum.Font.GothamBold or Enum.Font.Gotham
+        return t
+    end
+    local dashboard=create(scope,"Frame",{Name="HomeDashboard",BackgroundTransparency=1,Size=UDim2.new(1,-8,0,310),LayoutOrder=1},page)
+    local function card(name)
+        local f=create(scope,"Frame",{Name=name,BackgroundColor3=Color3.fromRGB(36,35,38),BorderSizePixel=0,ClipsDescendants=true},dashboard)
+        corner(scope,f,12)
+        create(scope,"UIGradient",{Rotation=125,Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,249,235)),ColorSequenceKeypoint.new(.45,Color3.fromRGB(206,203,208)),ColorSequenceKeypoint.new(1,Color3.fromRGB(143,141,147))})},f)
+        create(scope,"UIStroke",{Color=gold,Transparency=.79,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},f)
+        return f
+    end
+    local profile=card("Profile")
+    local avatar=create(scope,"ImageLabel",{BackgroundColor3=Color3.fromRGB(25,25,28),Position=UDim2.fromOffset(10,11),Size=UDim2.fromOffset(52,52),Image="",ScaleType=Enum.ScaleType.Fit},profile)
+    corner(scope,avatar,26)
+    create(scope,"UIStroke",{Color=gold,Transparency=.2,Thickness=1},avatar)
+    txt(profile,player.DisplayName,16,72,13,-82,24,white,true)
+    txt(profile,"@"..player.Name,11,72,36,-82,20,muted)
+    local fpsCard,timeCard=card("FPS"),card("Time")
+    local function metric(parent,icon,title)
+        drawIcon(scope,parent,icon,UDim2.fromOffset(10,9),15,gold)
+        txt(parent,title,11,31,6,-38,20,muted)
+        return txt(parent,"—",22,10,25,-20,31,gold,true)
+    end
+    local fps=metric(fpsCard,"activity","FPS")
+    local timer=metric(timeCard,"clock","Time")
+    timer.TextSize=17
+    timer.TextScaled=true
+    create(scope,"UITextSizeConstraint",{MinTextSize=9,MaxTextSize=20},timer)
+    local function info(name,icon,rows)
+        local f=card(name)
+        drawIcon(scope,f,icon,UDim2.fromOffset(10,9),16,gold)
+        txt(f,name,13,32,5,-39,24,white,true)
+        local result={}
+        for i,key in ipairs(rows) do
+            local y=30+(i-1)*23
+            create(scope,"Frame",{Position=UDim2.fromOffset(10,y),Size=UDim2.new(1,-20,0,1),BackgroundColor3=gold,BackgroundTransparency=.89,BorderSizePixel=0},f)
+            local k=txt(f,key,11,10,y+2,-20,19,muted)
+            k.Size=UDim2.new(.43,-10,0,19)
+            local v=txt(f,"—",11,0,y+2,-10,19,white)
+            v.Position=UDim2.new(.43,0,0,y+2)
+            v.Size=UDim2.new(.57,-10,0,19)
+            v.TextXAlignment=Enum.TextXAlignment.Right
+            result[key]=v
+        end
+        return f,result
+    end
+    local device,d=info("ข้อมูลเครื่อง","box",{"HWID","ประเภท","รุ่น","ระบบ"})
+    local gameCard,g=info("ข้อมูลเกมและเซิร์ฟเวอร์","gamepad",{"ชื่อเกม","Place ID","Server ID","Players","Ping"})
+    local scriptCard,s=info("ข้อมูลสคริปต์","code",{"ชื่อสคริปต์","Version","Developer"})
+    local function val(v)
+        if type(v)=="string" and v~="" then return v end
+        if finite(v) then return tostring(v) end
+        return "—"
+    end
+    local supplied=type(options.Device)=="table" and options.Device or {}
+    d.HWID.Text=val(supplied.MaskedHWID)
+    d["ประเภท"].Text=val(supplied.Type or (UIS.TouchEnabled and not UIS.KeyboardEnabled and "Mobile / Tablet" or (UIS.KeyboardEnabled and "PC" or nil)))
+    d["รุ่น"].Text=val(supplied.Model)
+    d["ระบบ"].Text=val(supplied.OS)
+    g["ชื่อเกม"].Text=val(options.Game)
+    g["Place ID"].Text=tostring(game.PlaceId)
+    g["Server ID"].Text=game.JobId~="" and game.JobId or "—"
+    s["ชื่อสคริปต์"].Text=val(options.ScriptName or options.Name or options.Title)
+    s.Version.Text=val(options.Version)
+    s.Developer.Text=val(options.Developer or BRAND)
+    local function layout()
+        if not scope.Alive then return end
+        local width=dashboard.AbsoluteSize.X
+        if width<1 then return end
+        local function place(f,x,y,w,h)
+            f.Position=UDim2.fromOffset(x,y); f.Size=UDim2.fromOffset(math.max(1,w),h)
+        end
+        local gap=8
+        if width>=400 then
+            local left=math.floor((width-gap)*.52)
+            local right=width-gap-left
+            local half=math.floor((left-gap)/2)
+            place(profile,0,0,left,74)
+            place(fpsCard,0,82,half,65)
+            place(timeCard,half+gap,82,left-half-gap,65)
+            place(device,left+gap,0,right,147)
+            place(gameCard,0,155,left,150)
+            place(scriptCard,left+gap,155,right,150)
+            dashboard.Size=UDim2.new(1,-8,0,309)
+        else
+            local half=math.floor((width-gap)/2)
+            place(profile,0,0,width,74)
+            place(fpsCard,0,82,half,65)
+            place(timeCard,half+gap,82,width-half-gap,65)
+            place(device,0,155,width,128)
+            place(gameCard,0,291,width,150)
+            place(scriptCard,0,449,width,105)
+            dashboard.Size=UDim2.new(1,-8,0,558)
+        end
+    end
+    scope:Connect(dashboard:GetPropertyChangedSignal("AbsoluteSize"),layout)
+    layout()
+    local started=os.clock()
+    timer.Text="00:00:00"
+    g.Players.Text=string.format("%d/%d",#Players:GetPlayers(),Players.MaxPlayers)
+    local frames,elapsed,slow=0,0,0
+    local function visible() return scope.Alive and page.Visible and self._panel.Visible end
+    scope:Connect(RunService.RenderStepped,function(dt)
+        if not visible() then frames,elapsed,slow=0,0,0; return end
+        frames+=1; elapsed+=dt; slow+=dt
+        if elapsed>=.5 then
+            fps.Text=tostring(math.floor(frames/elapsed+.5)); frames,elapsed=0,0
+        end
+        if slow>=1 then
+            slow=0
+            local t=math.max(0,math.floor(os.clock()-started))
+            timer.Text=string.format("%02d:%02d:%02d",math.floor(t/3600),math.floor(t/60)%60,t%60)
+            g.Players.Text=string.format("%d/%d",#Players:GetPlayers(),Players.MaxPlayers)
+            local ok,ping=pcall(function() return player:GetNetworkPing() end)
+            g.Ping.Text=ok and finite(ping) and string.format("%d ms",math.floor(ping*1000+.5)) or "—"
+        end
+    end)
+    scope:Spawn(function()
+        local ok,image=pcall(function() return Players:GetUserThumbnailAsync(player.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size150x150) end)
+        if scope.Alive and ok and type(image)=="string" then avatar.Image=image end
+    end)
+    if not options.Game then
+        scope:Spawn(function()
+            local ok,info=pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId) end)
+            if scope.Alive and ok and type(info)=="table" then g["ชื่อเกม"].Text=val(info.Name) end
+        end)
+    end
+    return tab
 end
 
 function SC:RunUITests()
